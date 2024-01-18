@@ -7,16 +7,26 @@ public class DataVersion
 
 	public DateTime CreationTime { get; } = DateTime.Now;
 	public Guid Id { get; } = Guid.NewGuid();
+	public IDictionary<Guid, DataVersion> ReferencingVersions { get; } = new Dictionary<Guid, DataVersion>(); //ToDo ConcurrentDict?
+	public IDictionary<Guid, DataVersion> ReferencedVersions { get; } = new Dictionary<Guid, DataVersion>(); //ToDo ConcurrentDict?
+
 
 	public bool IsActive => Entity.ActiveVersion.Id == Id;
+	public DataContext Context => Entity.Context;
+	public DataCore Core => Entity.Context.Core;
 }
 
 public class DataEntity
 {
 	public required DataVersion ActiveVersion { get; init; }
+	public required DataContext Context { get; init; }
 
 	public Guid Id { get; } = Guid.NewGuid();
 	public IDictionary<Guid, DataVersion> DataVersions { get; } = new Dictionary<Guid, DataVersion>(); //ToDo ConcurrentDict?
+	public IDictionary<Guid, DataEntity> ReferencingEntities => ActiveVersion.ReferencingVersions.ToDictionary(key => key.Value.Entity.Id, value => value.Value.Entity);
+	public IDictionary<Guid, DataEntity> ReferencedEntities => ActiveVersion.ReferencedVersions.ToDictionary(key => key.Value.Entity.Id, value => value.Value.Entity);
+
+	public DataCore Core => Context.Core;
 }
 
 public class DataContext
@@ -31,15 +41,8 @@ public class DataContext
 
 public class DataCore
 {
-	public DataCore()
-	{
-		ActiveDataContext = new DataContext
-		{
-			Core = this
-		};
-	}
+	public required DataContext ActiveDataContext { get; init; }
 
-	public DataContext ActiveDataContext { get; }
 	public IDictionary<Guid, DataContext> DataContexts { get; } = new Dictionary<Guid, DataContext>(); //ToDo ConcurrentDict?
 }
 
@@ -50,6 +53,15 @@ public class ExampleEntity
 	public required DateTime DateTime { get; set; }
 	public IList<ExampleEntity> ExampleEntities { get; set; } = new List<ExampleEntity>();
 	public required ExampleEntity ParEntity { get; set; }
+}
+
+public class ExampleContext : DataContext
+{
+	public IDictionary<Guid, ExampleEntity> ExampleEntities { get; set; } = new Dictionary<Guid, ExampleEntity>();
+}
+
+public class ExampleDataCore : DataCore
+{
 }
 
 public class ExampleEntityRepository
@@ -71,9 +83,15 @@ public class ExampleEntityRepository
 
 	public ExampleEntity GetExampleEntity(Guid id)
 	{
+		var dc = _dataCore.ActiveDataContext;
+
+		return dc.ExampleEntities.Values.First();
 	}
 
 	public ExampleEntity SyncExampleEntity(ExampleEntity entity)
 	{
+		var dc = _dataCore.ActiveDataContext;
+
+		return dc.ExampleEntities.Values.First();
 	}
 }
